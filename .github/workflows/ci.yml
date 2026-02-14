@@ -3,9 +3,11 @@ name: RAG CI Pipeline
 on:
   push:
     paths:
-      - 'docs/**'       # Changed from 'k8s.txt'
+      - 'docs/**'
       - 'app.py'
-      - 'embed_docs.py' # Changed from 'embed.py'
+      - 'embed_docs.py'
+      - 'Dockerfile'
+      - '.github/workflows/ci.yml'
 
 jobs:
   test-and-build:
@@ -25,7 +27,7 @@ jobs:
           pip install fastapi uvicorn chromadb requests
 
       - name: Rebuild embeddings
-        run: python embed_docs.py  # Changed from embed.py
+        run: python embed_docs.py
 
       - name: Start API in mock mode
         run: |
@@ -35,5 +37,18 @@ jobs:
       - name: Run semantic tests
         run: python semantic_test.py
 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.ambika005 }}
+          password: ${{ secrets.abii.neshh@4321 }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ambika005/rag-api:latest # Replace with your Docker Hub username
+
       - name: Success
-        run: echo "✅ All tests passed! RAG quality maintained."
+        run: echo "✅ All tests passed and Docker image built and pushed!"
