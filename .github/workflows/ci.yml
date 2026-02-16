@@ -2,30 +2,89 @@ name: RAG CI Pipeline
 
 on:
   push:
-    paths:
-      - 'docs/**'       # Changed from 'k8s.txt'
-      - 'app.py'
-      - 'embed_docs.py' # Changed from 'embed.py'
+  pull_request:
 
 jobs:
-  test-and-build:
+  path-filter:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      rag_changed: ${{ steps.filter.outputs.rag_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'push'
+        with:
+          fetch-depth: 2
 
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rag_changed:
+              - 'docs/**'
+              - 'app.py'
+              - 'embed_docs.py'
+
+  lint:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff check
+        run: ruff check .
+
+      - name: Run Ruff format check
+        run: ruff format --check .
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install fastapi uvicorn chromadb requests
+          pip install -r requirements.txt
+          pip install pytest httpx
+
+      - name: Run unit tests
+        run: pytest tests/ -v
+        env:
+          USE_MOCK_LLM: "1"
+
+  integration:
+    needs: [path-filter, lint, unit-tests]
+    if: github.event_name == 'pull_request' || needs.path-filter.outputs.rag_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Rebuild embeddings
-        run: python embed_docs.py  # Changed from embed.py
+        run: python embed_docs.py
 
       - name: Start API in mock mode
         run: |
@@ -36,4 +95,4 @@ jobs:
         run: python semantic_test.py
 
       - name: Success
-        run: echo "✅ All tests passed! RAG quality maintained."
+        run: echo "All tests passed! RAG quality maintained."
