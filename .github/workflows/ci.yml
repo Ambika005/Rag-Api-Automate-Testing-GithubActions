@@ -60,12 +60,15 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest httpx
+          pip install pytest pytest-cov httpx
 
-      - name: Run unit tests
-        run: pytest tests/ -v
+      - name: Run unit tests with coverage
+        run: pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
         env:
           USE_MOCK_LLM: "1"
+
+      - name: Check coverage threshold
+        run: coverage report --fail-under=80
 
   integration:
     needs: [path-filter, lint, unit-tests]
